@@ -5,7 +5,7 @@
 
 int main(int argc, char *argv[]) {
     int rank, size, N, i, j, isStrictlyDominant = 1;
-    double *A, *B, m, minVal = INFINITY;
+    double *A, *B, m, n, minVal = INFINITY;
     int minPos = -1;
 
     // Αρχικοποίηση του MPI
@@ -79,18 +79,25 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Υπολογισμός του μέγιστου απόλυτου στοιχείου της διαγωνίου του πίνακα A
-    m = fabs(A[rank * N + rank]);
-    for (i = rank + size; i < N; i += size) {
-        double temp = fabs(A[i * N + i]);
-        if (temp > m) {
-            m = temp;
-        }
+// Calculation of the maximum absolute value of the diagonal of matrix A
+m = fabs(A[rank * N + rank]);
+for (i = rank + size; i < N; i += size) {
+    double temp = fabs(A[i * N + i]);
+    if (temp > m) {
+        m = temp;
     }
+}
 
-    // Συγχρονισμός των διεργασιών και εύρεση του μέγιστου απόλυτου στοιχείου
-    double globalMax;
-    MPI_Allreduce(&m, &globalMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+// Synchronization of the processes and finding the maximum absolute value
+double globalMax;
+MPI_Allreduce(&m, &globalMax, 1, MPI_DOUBLE, MPI_MAX, MPI_COMM_WORLD);
+
+if (rank == 0) {
+    printf("The max absolute value of the diagonal is %lf\n", globalMax);
+}
+                    
+                    
+
 
     // Δημιουργία του πίνακα B
     for (i = rank; i < N; i += size) {
@@ -105,44 +112,39 @@ int main(int argc, char *argv[]) {
     }
 
     // Εκτύπωση του πίνακα B
-    if (rank == 0) {
+    if (rank == 0){
+        printf("The new matrix Β is:\n");
         for (i = 0; i < N; i++) {
             for (j = 0; j < N; j++) {
                 printf("%lf ", B[i * N + j]);
             }
             printf("\n");
         }
-    }
+    } 
 
-    // Εύρεση του ελάχιστου στοιχείου του πίνακα B και της θέσης του
-    if (rank * N < N * N) {
-    minVal = B[rank * N * size];
-    minPos = rank * N * size;
-} else {
-    minVal = INFINITY;
-    minPos = 0;
-}
-
+// Calculation of the minimum value of matrix B
+double localMin = B[rank * N];
+int localMinPos = rank * N;
 for (i = rank; i < N; i += size) {
     for (j = 0; j < N; j++) {
         int index = i * N + j;
-        if (B[index] < minVal) {
-            minVal = B[index];
-            minPos = index;
+        if (B[index] < localMin) {
+            localMin = B[index];
+            localMinPos = index;
         }
     }
 }
 
-    // Συγχρονισμός των διεργασιών και εύρεση του ελάχιστου στοιχείου και της θέσης του
-    double globalMin;
-    int globalPos;
-    MPI_Reduce(&minVal, &globalMin, 1, MPI_DOUBLE, MPI_MIN, 0, MPI_COMM_WORLD);
-    MPI_Reduce(&minPos, &globalPos, 1, MPI_INT, MPI_MIN, 0, MPI_COMM_WORLD);
+// Synchronization of the processes and finding the minimum value
+double globalMin;
+int globalMinPos;
+MPI_Allreduce(&localMin, &globalMin, 1, MPI_DOUBLE, MPI_MIN, MPI_COMM_WORLD);
+MPI_Allreduce(&localMinPos, &globalMinPos, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
 
-    // Εκτύπωση του ελάχιστου στοιχείου και της θέσης του
-    if (rank == 0) {
-        printf("Minimum value: %lf at position (%d, %d)\n", globalMin, globalPos / N, globalPos % N);
-    }
+if (rank == 0) {
+    printf("The min value of matrix B is %lf at position (%d, %d)\n", globalMin, globalMinPos / N + 1, globalMinPos % N + 1);
+}
+
 
     // Απελευθέρωση της μνήμης και τερματισμός του MPI
     free(A);
